@@ -1,6 +1,6 @@
 // Thin wrapper around @stellar/stellar-sdk's contract client + Freighter wallet.
 //
-// We use the runtime `contract.Client.from(...)`, which fetches the contract's
+// We use the runtime `contract.Client.from(...)`, which fetches each contract's
 // interface from the network — so this app needs no pre-generated bindings, just
 // the deployed contract id.
 
@@ -10,12 +10,13 @@ import {
   signTransaction as freighterSign,
 } from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
+import type { ArgType } from './contracts';
 
 export const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
 export const RPC_URL = 'https://soroban-testnet.stellar.org';
 
 // Your deployed PesoBridge contract on testnet.
-export const DEFAULT_CONTRACT_ID =
+export const DEFAULT_PESO_BRIDGE_ID =
   'CBVNNLIKGYDXDP4KFXIB4K7VDFDZFDG74UJHNMQTO3XAA65DBSTPPJCP';
 
 export const explorerContract = (id: string) =>
@@ -27,7 +28,7 @@ export const explorerTx = (hash: string) =>
 export async function connectWallet(): Promise<string> {
   const res: any = await requestAccess();
   if (res?.error) throw new Error(String(res.error));
-  const addr: string | undefined = res?.address || (await getAddress() as any)?.address;
+  const addr: string | undefined = res?.address || ((await getAddress()) as any)?.address;
   if (!addr) throw new Error('Freighter did not return an address. Is it unlocked?');
   return addr;
 }
@@ -82,7 +83,28 @@ export async function writeCall(
   return { value, hash };
 }
 
-/** PesoBridge stores Status as an integer enum (0/1/2); decode defensively. */
+/** Convert a raw form string into the JS value the SDK expects for an arg type. */
+export function convertArg(type: ArgType, raw: string): any {
+  const v = (raw ?? '').trim();
+  switch (type) {
+    case 'address':
+    case 'token':
+      return v;
+    case 'i128':
+    case 'u64':
+      return BigInt(v || '0');
+    case 'u32':
+      return Number(v || '0');
+    case 'vec_i128':
+      return v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => BigInt(s));
+  }
+}
+
+/** Decode a Status field (stored as an integer enum 0/1/2) defensively. */
 export function statusLabel(s: any): string {
   if (s === null || s === undefined) return '—';
   if (typeof s === 'number') return ['Pending', 'Paid', 'Cancelled'][s] ?? String(s);

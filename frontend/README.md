@@ -1,16 +1,21 @@
-# PesoBridge UI
+# Soroban SME Rails — web UI
 
-A minimal React + Vite web app that talks to the **deployed PesoBridge contract** on Stellar
-testnet through [Freighter](https://www.freighter.app/). It walks the full MVP: connect wallet
-→ initialize → issue invoice → pay → see it settle.
+One React + Vite app for **all three** deployed contracts on Stellar testnet, with a tab to
+switch between them. It talks to each contract through [Freighter](https://www.freighter.app/)
+using `@stellar/stellar-sdk`'s runtime `contract.Client.from()` — no pre-generated bindings,
+just the contract id.
 
-No pre-generated bindings needed — it uses `@stellar/stellar-sdk`'s runtime
-`contract.Client.from()`, which fetches the contract interface from the network by id.
+- 🌉 **PesoBridge** — cross-border B2B invoicing (issue → pay → settle)
+- ⚡ **SuweldoChain** — SME payroll (add employees → fund → run payroll)
+- 🤝 **Takdang Bayad** — freelancer milestone escrow (create job → fund → approve)
+
+Every contract function is rendered as a small form (read calls simulate; write calls sign
+with Freighter and submit), so the whole surface of each contract is clickable.
 
 ## Prerequisites
 
-- **Node 18+** and npm (`node --version`)
-- The **Freighter** browser extension, set to **Testnet**, with a funded testnet account
+- **Node 18+** and npm
+- The **Freighter** extension, set to **Testnet**, with a funded testnet account
   (fund via Freighter's friendbot button or `https://friendbot.stellar.org/?addr=YOUR_G_ADDRESS`)
 
 ## Run
@@ -21,42 +26,51 @@ npm install
 npm run dev        # → http://localhost:5173
 ```
 
-Build for hosting (Netlify/Vercel/GitHub Pages — just drop the `dist/` folder):
+Build for hosting (Netlify/Vercel/GitHub Pages — drop the `dist/` folder):
 
 ```sh
 npm run build
-npm run preview    # serve the production build locally
+npm run preview
 ```
 
-## Using it
+## Contract ids
 
-The contract id is pre-filled with the deployed PesoBridge
-(`CBVNNLIK…BSTPPJCP`) and is editable at the top.
+- **PesoBridge** is pre-filled (`CBVNNLIK…BSTPPJCP`).
+- **SuweldoChain** and **Takdang Bayad** start blank — paste each deployed id into the
+  "Contract ID" box on its tab. Ids are saved to `localStorage`, so you only paste once. (To
+  bake them in as defaults, set `defaultId` in [`src/contracts.ts`](src/contracts.ts).)
+
+## Using it (example: PesoBridge)
 
 1. **Connect Freighter** (top-right).
-2. **Initialize** *(once, admin)* — paste the token contract id to settle in. For a demo, use
-   native XLM's Stellar Asset Contract:
-   ```sh
-   stellar contract id asset --asset native --network testnet
-   ```
-3. **Issue invoice** — exporter + buyer default to your connected address (handy single-wallet
-   demo); set an amount in base units (`10000000` = 1 XLM). Returns an invoice id.
-4. **Pay invoice** — enter the id and pay. Freighter must be on the **buyer** account to
-   authorize; with the single-wallet setup that's just you. Funds settle to the exporter.
-5. **Invoice status** — fetch the invoice to watch it flip to **Paid**, and see the contract's
-   total settled.
+2. Pick the **PesoBridge** tab; its id is already set.
+3. `initialize` → paste a token id. For a demo use native XLM's SAC:
+   `stellar contract id asset --asset native --network testnet`.
+4. `issue_invoice` → use the **me** chip to fill exporter/buyer with your address; amount in
+   base units (`10000000` = 1 XLM). Returns an invoice id.
+5. `pay_invoice` → enter the id (Freighter signs as the buyer).
+6. `get_invoice` → watch the status flip to **Paid**; `total_settled` shows the amount.
 
-Each successful transaction links to [stellar.expert](https://stellar.expert/explorer/testnet)
-in the Activity panel.
+SuweldoChain and Takdang Bayad follow the flow shown at the top of their tab.
 
-## Config
+## Project map
 
-Network, RPC, and the default contract id live in [`src/stellar.ts`](src/stellar.ts). Point it
-at a different deployment by editing `DEFAULT_CONTRACT_ID` (or just paste a new id in the UI).
+```
+frontend/
+├── index.html
+├── src/
+│   ├── contracts.ts   # declarative config: every contract + function (drives the forms)
+│   ├── stellar.ts     # SDK client + Freighter + arg conversion helpers
+│   ├── InvokeCard.tsx # one function → one form + result renderer
+│   ├── App.tsx        # tabs, contract-id management, activity log
+│   └── styles.css
+└── package.json
+```
+
+Adding another contract is just one more entry in `CONTRACTS` in `src/contracts.ts`.
 
 ## Notes
 
-- This is a testnet demo: amounts are integers in the token's base units (USDC/XLM use 7
-  decimals). Native-XLM transfers only succeed to **funded** accounts.
-- The same pattern (swap the contract id + form fields) extends to `suweldo_chain` and
-  `takdang_bayad`.
+- Testnet demo: amounts are integers in the token's base units (USDC/XLM use 7 decimals).
+  Native-XLM transfers only succeed to **funded** accounts.
+- Network, RPC, and PesoBridge's default id live in [`src/stellar.ts`](src/stellar.ts).
